@@ -67,20 +67,22 @@ def get_overall(client_id, time_from, time_to, referrer, device_type, country, c
     cur.close()
     conn.close()
     sessions, pvs, pvs_w_time, tot_time, first_sessions = records
-    if pvs_w_time > 0:
+    if pvs_w_time is not None and pvs_w_time > 0:
         secs_per_pv = tot_time/pvs_w_time
         pvs_per_session = pvs/sessions
         mins_per_visit = convert_seconds_to_minutes(int(round(secs_per_pv * pvs_per_session)))
     else:
         mins_per_visit = "-"
     
-    if sessions > 0:
+    if sessions is not None and sessions > 0:
         first_visits = int(100*first_sessions/sessions)
+        sessions = int(sessions)
     else:
         first_visits = "-"
+        sessions = 0
     
     resp = {
-        "sessions": int(sessions),
+        "sessions": sessions,
         "mins_per_visit": mins_per_visit,
         "first_visits": first_visits
     }
@@ -137,19 +139,21 @@ def get_overall_url(client_id, time_from, time_to, url, referrer, device_type, c
     conn.close()
 
     pvs, pvs_w_time, tot_time, sessions, first_sessions = records
-    if pvs_w_time > 0:
+    if pvs_w_time is not None and pvs_w_time > 0:
         secs_per_pv = tot_time/pvs_w_time
         pvs_per_session = pvs/sessions
         mins_per_visit = convert_seconds_to_minutes(int(round(secs_per_pv * pvs_per_session)))
     else:
         mins_per_visit = "-"
     
-    if sessions > 0:
+    if sessions is not None and sessions > 0:
         first_visits = int(100*first_sessions/sessions)
+        pvs = int(pvs)
     else:
         first_visits = "-"
+        pvs = "-"
     resp = {
-        "pvs": int(pvs),
+        "pvs": pvs,
         "mins_per_pv": mins_per_visit,
         "first_visits": first_visits
     }
@@ -198,7 +202,8 @@ def get_trends(client_id, time_from, time_to, referrer, device_type, country, ci
                 f"{device_clause}"
                 f"{country_clause}"
                 f"{city_clause}"
-            f"GROUP BY hour"
+            f"GROUP BY hour "
+            f"ORDER BY hour "
             f";"
         )
         records = cur.fetchall()
@@ -230,7 +235,8 @@ def get_trends(client_id, time_from, time_to, referrer, device_type, country, ci
                 f"{device_clause}"
                 f"{country_clause}"
                 f"{city_clause}"
-            f"GROUP BY hour"
+            f"GROUP BY hour "
+            f"ORDER BY hour "
             f";"
         )
         records = cur.fetchall()
@@ -290,7 +296,8 @@ def get_trends_7d_ago(client_id, time_from, time_to, referrer, device_type, coun
             f"{country_clause}"
             f"{city_clause}"
             f"{referrer_clause}"
-        f"GROUP BY hour"
+        f"GROUP BY hour "
+        f"ORDER BY hour "
         f";"
     )
     records = cur.fetchall()
@@ -331,7 +338,7 @@ def get_urls(client_id, time_from, time_to, referrer, device_type, country, city
     cur.execute(
         f"SELECT "
             f"url_path, "
-            f"SUM(pageviews), "
+            f"SUM(pageviews) pageviews, "
             f"SUM(pageviews_w_timespent), "
             f"SUM(tot_time), "
             f"SUM(affluence_index), "
@@ -344,7 +351,8 @@ def get_urls(client_id, time_from, time_to, referrer, device_type, country, city
             f"{device_clause}"
             f"{country_clause}"
             f"{city_clause}"
-        f"GROUP BY url_path"
+        f"GROUP BY url_path "
+        f"ORDER BY pageviews DESC "
         f";"
     )
     records = cur.fetchall()
@@ -353,7 +361,7 @@ def get_urls(client_id, time_from, time_to, referrer, device_type, country, city
     resp = {"data": []}
     for record in records:
         url, pvs, pvs_w_timespent, timespent, aff_idx, first_session_pvs = record
-        if pvs_w_timespent > 0:
+        if pvs_w_timespent is not None and pvs_w_timespent > 0:
             secs = int(round(timespent/pvs_w_timespent))
         else:
             secs = None
@@ -402,7 +410,7 @@ def get_macro(client_id, time_from, time_to, referrer, device_type, country, cit
         cur.execute(
             f"SELECT "
                 f"{groupby}, "
-                f"SUM(sessions), "
+                f"SUM(sessions) sessions, "
                 f"SUM(pageviews), "
                 f"SUM(pageviews_w_timespent), "
                 f"SUM(tot_time) "
@@ -415,14 +423,15 @@ def get_macro(client_id, time_from, time_to, referrer, device_type, country, cit
                 f"{device_clause}"
                 f"{country_clause}"
                 f"{city_clause}"
-            f"GROUP BY {groupby}"
+            f"GROUP BY {groupby} "
+            f"ORDER BY sessions DESC"
             f";"
         )
         records = cur.fetchall()
         resp = {"data": []}
         for record in records:
             key, sessions, pvs, pvs_w_time, timespent = record
-            if pvs_w_time > 0:
+            if pvs_w_time is not None and pvs_w_time > 0:
                 time_per_pv = timespent/pvs_w_time
                 pvs_per_session = sessions/pvs
                 time_per_session = time_per_pv*pvs_per_session
@@ -479,7 +488,7 @@ def get_geo(client_id, time_from, time_to, referrer, device_type, country, city,
         f"SELECT "
             f"country, "
             f"city, "
-            f"SUM(sessions) "
+            f"SUM(sessions) sessions "
         f"FROM geography "
         f"WHERE "
             f"hour BETWEEN '{time_from}' AND '{time_to}' AND "
@@ -489,7 +498,8 @@ def get_geo(client_id, time_from, time_to, referrer, device_type, country, city,
             f"{device_clause}"
             f"{country_clause}"
             f"{city_clause}"
-        f"GROUP BY country, city"
+        f"GROUP BY country, city "
+        f"ORDER BY sessions DESC"
         f";"
     )
     records = cur.fetchall()
@@ -626,10 +636,146 @@ def get_scroll_depth(client_id, time_from, time_to, referrer, device_type, count
     return resp
 
 def get_read_next(client_id, time_from, time_to, referrer, device_type, country, city, url):
-    return []
+    if device_type:
+        device_clause = f" AND device_type IN {device_type} "
+    else:
+        device_clause = ""
+    
+    if country:
+        country_clause = f" AND country IN {country} "
+    else:
+        country_clause = ""
+    
+    if city:
+        city_clause = f" AND city IN {city} "
+    else:
+        city_clause = ""
+    
+    if referrer:
+        referrer_clause = f" AND session_referrer IN {referrer} "
+    else:
+        referrer_clause = ""
+    
+    conn = make_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        f"SELECT "
+            f"to_url, "
+            f"SUM(pageviews) pageviews "
+        f"FROM next_url "
+        f"WHERE "
+            f"hour BETWEEN '{time_from}' AND '{time_to}' AND "
+            f"client_id = '{client_id}' AND "
+            f"from_url = '{url}' "
+            f"{referrer_clause}"
+            f"{device_clause}"
+            f"{country_clause}"
+            f"{city_clause}"
+        f"GROUP BY to_url "
+        f"ORDER BY pageviews DESC"
+        f";"
+    )
+    records = cur.fetchall()
+    cur.close()
+    conn.close()
+    
+    resp = {"data": []}
+    for record in records:
+        url, pvs = record
+        resp['data'].append({"url": url, "pvs": int(pvs)})
+    return resp
+
 
 def get_events(client_id, time_from, time_to, referrer, device_type, country, city, url):
-    return []
+    if device_type:
+        device_clause = f" AND device_type IN {device_type} "
+    else:
+        device_clause = ""
+    
+    if country:
+        country_clause = f" AND country IN {country} "
+    else:
+        country_clause = ""
+    
+    if city:
+        city_clause = f" AND city IN {city} "
+    else:
+        city_clause = ""
+    
+    if referrer:
+        referrer_clause = f" AND session_referrer IN {referrer} "
+    else:
+        referrer_clause = ""
+    
+    conn = make_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT * FROM (
+            SELECT
+                'event1' event_cat,
+                event,
+                SUM(hits) hits
+            FROM event1
+            WHERE
+                hour BETWEEN '{time_from}' AND '{time_to}' AND
+                client_id = '{client_id}' AND 
+                url_path = '{url}'
+                {referrer_clause}
+                {device_clause}
+                {country_clause}
+                {city_clause}
+            GROUP BY event
+
+            UNION
+            
+            SELECT
+                'event2' event_cat,
+                event,
+                SUM(hits) hits
+            FROM event2
+            WHERE
+                hour BETWEEN '{time_from}' AND '{time_to}' AND
+                client_id = '{client_id}' AND 
+                url_path = '{url}'
+                {referrer_clause}
+                {device_clause}
+                {country_clause}
+                {city_clause}
+            GROUP BY event
+
+            UNION
+
+            SELECT
+                'event3' event_cat,
+                event,
+                SUM(hits) hits
+            FROM event3
+            WHERE
+                hour BETWEEN '{time_from}' AND '{time_to}' AND
+                client_id = '{client_id}' AND 
+                url_path = '{url}'
+                {referrer_clause}
+                {device_clause}
+                {country_clause}
+                {city_clause}
+            GROUP BY event
+        ) comb_table
+        ORDER BY hits DESC
+        ;
+    """.format(time_from=time_from, time_to=time_to, client_id=client_id, url=url, referrer_clause=referrer_clause,
+    device_clause=device_clause, country_clause=country_clause, city_clause=city_clause))
+
+    records = cur.fetchall()
+    cur.close()
+    conn.close()
+    
+    resp = {"data": []}
+    for record in records:
+        event_cat, event, hits = record
+        resp['data'].append({"event_cat": event_cat, "event": event, "hits": int(hits)})
+    return resp
 
 def serve_api(request):
     # Set CORS headers for the preflight request
