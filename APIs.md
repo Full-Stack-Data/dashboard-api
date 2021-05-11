@@ -9,8 +9,21 @@
 ### Output
 Object with the following attributes:
 - `sessions`
-- `mins/session`
+- `mins/pv`
 - `perc_first_time_sessions`
+
+## `/overall_url`
+### Input
+- `client_id`
+- `time_from`
+- `time_to`
+- `url`
+
+### Output
+Object with the following attributes:
+- `pvs`
+- `mins/pv`
+- `first_visits`
 
 ## `/trends`
 ### Input
@@ -25,13 +38,26 @@ Object with the following attributes:
 
 ### Output
 Object with the following attributes:
-- `pvs_7d_ago`: `[ [epoch_time, pvs], ... ]`
 - `total_pvs`: `[ [epoch_time, pvs], ... ]`
 - `search_pvs`: `[ [epoch_time, pvs], ... ]`
 - `social_pvs`: `[ [epoch_time, pvs], ... ]`
 - `direct_pvs`: `[ [epoch_time, pvs], ... ]`
 - `forum_pvs`: `[ [epoch_time, pvs], ... ]`
 - `other_pvs`: `[ [epoch_time, pvs], ... ]`
+
+## `/trends_7d_ago`
+### Input
+- `client_id`
+- `time_from`
+- `time_to`
+- `referrer` (optional)
+- `device_type` (optional)
+- `country` (optional)
+- `city` (optional)
+
+### Output
+Object with the following attributes:
+- `total_pvs`: `[ [epoch_time, pvs], ... ]`
 
 ## `/urls`
 ### Input
@@ -42,7 +68,6 @@ Object with the following attributes:
 - `device_type` (optional)
 - `country` (optional)
 - `city` (optional)
-- `url` (optional)
 
 ### Output
 Array of objects, each of which have the following attributes:
