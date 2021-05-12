@@ -18,10 +18,56 @@ def convert_seconds_to_minutes(s):
     return f"{minutes}:{seconds}"
 
 def convert_list_to_tuple(l):
-    if len(l) == 1:
-        return tuple(l[0])
-    else:
-        return tuple(l)
+    if not l:
+        return l
+    s = f"( '{l[0]}'"
+    for item in l[1:]:
+        s += f", '{item}'"
+    s += " )"
+    return s
+
+def get_options(client_id, time_from, time_to):
+    conn = make_connection()
+    cur = conn.cursor()
+    cur.execute("""
+    SELECT * FROM (
+        SELECT
+            DISTINCT 'referrer', session_referrer 
+        FROM geography
+        WHERE
+            client_id = '{client_id}'
+            AND hour BETWEEN '{time_from}' AND '{time_to}'
+        
+        UNION
+        SELECT
+            DISTINCT 'country', country 
+        FROM geography
+        WHERE
+            client_id = '{client_id}'
+            AND hour BETWEEN '{time_from}' AND '{time_to}'
+        
+        UNION
+        SELECT
+            DISTINCT 'city', city
+        FROM geography
+        WHERE
+            client_id = '{client_id}'
+            AND hour BETWEEN '{time_from}' AND '{time_to}'
+    ) options;
+    """.format(client_id=client_id, time_from=time_from, time_to=time_to))
+    records = cur.fetchall()
+    cur.close()
+    conn.close()
+    resp = {"referrers": [], "countries": [], "cities": []}
+    for record in records:
+        option, value = record
+        if option == "referrer":
+            resp['referrers'].append(value)
+        elif option == "country":
+            resp['countries'].append(value)
+        elif option == "city":
+            resp['cities'].append(value)
+    return resp
 
 def get_overall(client_id, time_from, time_to, referrer, device_type, country, city):
     if device_type:
@@ -46,23 +92,39 @@ def get_overall(client_id, time_from, time_to, referrer, device_type, country, c
     
     conn = make_connection()
     cur = conn.cursor()
-    cur.execute(
-        f"SELECT "
-            f"SUM(sessions), "
-            f"SUM(pageviews), "
-            f"SUM(pageviews_w_timespent), "
-            f"SUM(tot_time), "
-            f"SUM(first_sessions) "
-        f"FROM overall "
-        f"WHERE "
-            f"hour BETWEEN '{time_from}' AND '{time_to}' AND "
-            f"client_id = '{client_id}' "
-            f"{referrer_clause}"
-            f"{device_clause}"
-            f"{country_clause}"
-            f"{city_clause}"
-        f";"
-    )
+    if not referrer and not country and not city:
+        cur.execute(
+            f"SELECT "
+                f"SUM(sessions), "
+                f"SUM(pageviews), "
+                f"SUM(pageviews_w_timespent), "
+                f"SUM(tot_time), "
+                f"SUM(first_sessions) "
+            f"FROM overall "
+            f"WHERE "
+                f"hour BETWEEN '{time_from}' AND '{time_to}' AND "
+                f"client_id = '{client_id}' "
+                f"{device_clause}"
+            f";"
+        )
+    else:
+        cur.execute(
+            f"SELECT "
+                f"SUM(sessions), "
+                f"SUM(pageviews), "
+                f"SUM(pageviews_w_timespent), "
+                f"SUM(tot_time), "
+                f"SUM(first_sessions) "
+            f"FROM geography "
+            f"WHERE "
+                f"hour BETWEEN '{time_from}' AND '{time_to}' AND "
+                f"client_id = '{client_id}' "
+                f"{referrer_clause}"
+                f"{device_clause}"
+                f"{country_clause}"
+                f"{city_clause}"
+            f";"
+        )
     records = cur.fetchone()
     cur.close()
     conn.close()
@@ -185,7 +247,7 @@ def get_trends(client_id, time_from, time_to, referrer, device_type, country, ci
     else:
         referrer_clause = ""
     
-    if referrer or url:
+    if referrer or url or country or city:
         conn = make_connection()
         cur = conn.cursor()
 
@@ -233,8 +295,6 @@ def get_trends(client_id, time_from, time_to, referrer, device_type, country, ci
                 f"hour BETWEEN '{time_from}' AND '{time_to}' AND "
                 f"client_id = '{client_id}' "
                 f"{device_clause}"
-                f"{country_clause}"
-                f"{city_clause}"
             f"GROUP BY hour "
             f"ORDER BY hour "
             f";"
@@ -342,8 +402,8 @@ def get_urls(client_id, time_from, time_to, referrer, device_type, country, city
             f"SUM(pageviews_w_timespent), "
             f"SUM(tot_time), "
             f"SUM(affluence_index), "
-            f"SUM(first_session_pageviews) "
-        f"FROM url "
+            f"SUM(first_sessions) "
+        f"FROM geography "
         f"WHERE "
             f"hour BETWEEN '{time_from}' AND '{time_to}' AND "
             f"client_id = '{client_id}' "
@@ -820,7 +880,10 @@ def serve_api(request):
     groupby = api_params.get("groupby")
     metric = api_params.get("metric")
 
-    if api_endpoint == "overall":
+    if api_endpoint == "get_options":
+        #handle overall endpoint
+        resp = get_options(client_id, time_from, time_to)
+    elif api_endpoint == "overall":
         #handle overall endpoint
         resp = get_overall(client_id, time_from, time_to, referrer, device_type, country, city)
     elif api_endpoint == "overall_url":
