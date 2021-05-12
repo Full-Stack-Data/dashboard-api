@@ -683,7 +683,7 @@ def get_read_next(client_id, time_from, time_to, referrer, device_type, country,
     resp = {"data": []}
     for record in records:
         url, pvs = record
-        resp['data'].append({"url": url, "pvs": int(pvs)})
+        resp['data'].append({"key": url, "url": url, "pvs": int(pvs)})
     return resp
 
 
@@ -772,9 +772,11 @@ def get_events(client_id, time_from, time_to, referrer, device_type, country, ci
     conn.close()
     
     resp = {"data": []}
+    idx = 0
     for record in records:
         event_cat, event, hits = record
-        resp['data'].append({"event_cat": event_cat, "event": event, "hits": int(hits)})
+        resp['data'].append({"key": idx, "event_cat": event_cat, "event": event, "hits": int(hits)})
+        idx += 1
     return resp
 
 def serve_api(request):
