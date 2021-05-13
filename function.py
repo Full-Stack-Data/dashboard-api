@@ -15,6 +15,8 @@ def make_connection():
 def convert_seconds_to_minutes(s):
     minutes = s//60
     seconds = s%60
+    if seconds < 10:
+        seconds = f"0{seconds}"
     return f"{minutes}:{seconds}"
 
 def convert_list_to_tuple(l):
@@ -184,8 +186,8 @@ def get_overall_url(client_id, time_from, time_to, url, referrer, device_type, c
             f"SUM(pageviews_w_timespent), "
             f"SUM(tot_time), "
             f"SUM(sessions), "
-            f"SUM(first_session_pageviews) "
-        f"FROM url "
+            f"SUM(first_sessions) "
+        f"FROM geography "
         f"WHERE "
             f"hour BETWEEN '{time_from}' AND '{time_to}' AND "
             f"client_id = '{client_id}' AND "
@@ -221,7 +223,7 @@ def get_overall_url(client_id, time_from, time_to, url, referrer, device_type, c
     }
     return resp
 
-def get_trends(client_id, time_from, time_to, referrer, device_type, country, city, url):
+def get_trends(client_id, time_from, time_to, referrer, device_type, country, city, url, chart_resolution):
     if device_type:
         device_clause = f" AND device_type IN {device_type} "
     else:
@@ -247,25 +249,32 @@ def get_trends(client_id, time_from, time_to, referrer, device_type, country, ci
     else:
         referrer_clause = ""
     
+    if chart_resolution == "h":
+        time_period = "hour"
+    elif chart_resolution == "d":
+        time_period = "date"
+        time_from = time_from[:-3]
+        time_to = time_to[:-3]
+    
     if referrer or url or country or city:
         conn = make_connection()
         cur = conn.cursor()
 
         cur.execute(
             f"SELECT "
-                f"hour, "
+                f"{time_period}, "
                 f"SUM(pageviews) "
-            f"FROM url "
+            f"FROM geography "
             f"WHERE "
-                f"hour BETWEEN '{time_from}' AND '{time_to}' AND "
+                f"{time_period} BETWEEN '{time_from}' AND '{time_to}' AND "
                 f"client_id = '{client_id}' "
                 f"{url_clause}"
                 f"{referrer_clause}"
                 f"{device_clause}"
                 f"{country_clause}"
                 f"{city_clause}"
-            f"GROUP BY hour "
-            f"ORDER BY hour "
+            f"GROUP BY {time_period} "
+            f"ORDER BY {time_period} "
             f";"
         )
         records = cur.fetchall()
@@ -275,15 +284,18 @@ def get_trends(client_id, time_from, time_to, referrer, device_type, country, ci
             "total_pvs": []
         }
         for record in records:
-            hour, pvs = record
-            hour = 1000*int(datetime.strptime(hour, "%Y-%m-%d-%H").strftime("%s"))
-            resp['total_pvs'].append([hour, int(pvs)])
+            tp, pvs = record
+            if chart_resolution == "h":
+                tp = 1000*int(datetime.strptime(tp, "%Y-%m-%d-%H").strftime("%s"))
+            elif chart_resolution == "d":
+                tp = 1000*int(datetime.strptime(tp, "%Y-%m-%d").strftime("%s"))
+            resp['total_pvs'].append([tp, int(pvs)])
     else:
         conn = make_connection()
         cur = conn.cursor()
         cur.execute(
             f"SELECT "
-                f"hour, "
+                f"{time_period}, "
                 f"SUM(pageviews), "
                 f"SUM(search_pageviews), "
                 f"SUM(social_pageviews), "
@@ -292,11 +304,11 @@ def get_trends(client_id, time_from, time_to, referrer, device_type, country, ci
                 f"SUM(other_pageviews) "
             f"FROM overall "
             f"WHERE "
-                f"hour BETWEEN '{time_from}' AND '{time_to}' AND "
+                f"{time_period} BETWEEN '{time_from}' AND '{time_to}' AND "
                 f"client_id = '{client_id}' "
                 f"{device_clause}"
-            f"GROUP BY hour "
-            f"ORDER BY hour "
+            f"GROUP BY {time_period} "
+            f"ORDER BY {time_period} "
             f";"
         )
         records = cur.fetchall()
@@ -311,14 +323,17 @@ def get_trends(client_id, time_from, time_to, referrer, device_type, country, ci
             "other_pvs": []
         }
         for record in records:
-            hour, pvs, search_pvs, social_pvs, forum_pvs, direct_pvs, other_pvs = record
-            hour = 1000*int(datetime.strptime(hour, "%Y-%m-%d-%H").strftime("%s"))
-            resp['total_pvs'].append([hour, int(pvs)])
-            resp['search_pvs'].append([hour, int(search_pvs)])
-            resp['social_pvs'].append([hour, int(social_pvs)])
-            resp['direct_pvs'].append([hour, int(direct_pvs)])
-            resp['forum_pvs'].append([hour, int(forum_pvs)])
-            resp['other_pvs'].append([hour, int(other_pvs)])
+            tp, pvs, search_pvs, social_pvs, forum_pvs, direct_pvs, other_pvs = record
+            if chart_resolution == "h":
+                tp = 1000*int(datetime.strptime(tp, "%Y-%m-%d-%H").strftime("%s"))
+            elif chart_resolution == "d":
+                tp = 1000*int(datetime.strptime(tp, "%Y-%m-%d").strftime("%s"))
+            resp['total_pvs'].append([tp, int(pvs)])
+            resp['search_pvs'].append([tp, int(search_pvs)])
+            resp['social_pvs'].append([tp, int(social_pvs)])
+            resp['direct_pvs'].append([tp, int(direct_pvs)])
+            resp['forum_pvs'].append([tp, int(forum_pvs)])
+            resp['other_pvs'].append([tp, int(other_pvs)])
     return resp
 
 def get_trends_7d_ago(client_id, time_from, time_to, referrer, device_type, country, city):
@@ -566,7 +581,7 @@ def get_geo(client_id, time_from, time_to, referrer, device_type, country, city,
     cur.close()
     conn.close()
     resp = {"data": []}
-    idx = 0
+    idx = 1
     for record in records:
         country, city, visits = record
         resp['data'].append({
@@ -832,7 +847,7 @@ def get_events(client_id, time_from, time_to, referrer, device_type, country, ci
     conn.close()
     
     resp = {"data": []}
-    idx = 0
+    idx = 1
     for record in records:
         event_cat, event, hits = record
         resp['data'].append({"key": idx, "event_cat": event_cat, "event": event, "hits": int(hits)})
@@ -879,6 +894,7 @@ def serve_api(request):
     url = api_params.get("url")
     groupby = api_params.get("groupby")
     metric = api_params.get("metric")
+    chart_resolution = api_params.get("chart_resolution")
 
     if api_endpoint == "get_options":
         #handle overall endpoint
@@ -892,7 +908,7 @@ def serve_api(request):
     elif api_endpoint == "trends":
         #handle endpoint
         resp = get_trends(client_id, time_from, time_to,
-            referrer, device_type, country, city, url)
+            referrer, device_type, country, city, url, chart_resolution)
     elif api_endpoint == "trends_7d_ago":
         #handle endpoint
         resp = get_trends_7d_ago(client_id, time_from, time_to, referrer, device_type, country, city)
