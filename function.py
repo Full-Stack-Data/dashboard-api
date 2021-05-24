@@ -168,11 +168,6 @@ def get_overall_url(client_id, time_from, time_to, url, referrer, device_type, c
     else:
         city_clause = ""
     
-    if url:
-        url_clause = f" AND url_path = '{url}' "
-    else:
-        url_clause = ""
-    
     if referrer:
         referrer_clause = f" AND session_referrer IN {referrer} "
     else:
@@ -629,7 +624,7 @@ def get_timespent(client_id, time_from, time_to, referrer, device_type, country,
             f"SUM(pageviews_ts_120_150), "
             f"SUM(pageviews_ts_150_180), "
             f"SUM(pageviews_ts_gt_180) "
-        f"FROM url "
+        f"FROM geography "
         f"WHERE "
             f"hour BETWEEN '{time_from}' AND '{time_to}' AND "
             f"client_id = '{client_id}' "
@@ -688,7 +683,7 @@ def get_scroll_depth(client_id, time_from, time_to, referrer, device_type, count
             f"SUM(pageviews_sd_40_60), "
             f"SUM(pageviews_sd_60_80), "
             f"SUM(pageviews_sd_gt_80) "
-        f"FROM url "
+        f"FROM geography "
         f"WHERE "
             f"hour BETWEEN '{time_from}' AND '{time_to}' AND "
             f"client_id = '{client_id}' "
